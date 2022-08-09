@@ -13,8 +13,10 @@ from django.contrib.admin.utils import (
     prepare_lookup_value,
     reverse_field_path,
 )
+from django.contrib.admin.widgets import ListFilterAutocompleteSelect
 from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import models
+from django.forms.models import ModelChoiceField
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -175,6 +177,63 @@ class FieldListFilter(ListFilter):
                 return list_filter_class(
                     field, request, params, model, model_admin, field_path=field_path
                 )
+
+
+class AutoCompleteFieldListFilter(FieldListFilter):
+
+    template = "admin/autocomplete_filter.html"
+    form_field = ModelChoiceField
+
+    # field,
+    # request,
+    # lookup_params,
+    # self.model,
+    # self.model_admin,
+    # field_path=field_path,
+    def __init__(self, field, request, params, model, model_admin, field_path):
+
+        self.model = model
+        self.model_admin = model_admin
+        self.field_path = field_path
+        self.target_model = get_model_from_relation(field)
+
+        super().__init__(field, request, params, model, model_admin, field_path)
+
+        self.lookup_choices = self.field_choices(field, request, model_admin)
+        if hasattr(field, "verbose_name"):
+            self.lookup_title = field.verbose_name
+        else:
+            self.lookup_title = self.target_model._meta.verbose_name
+        self.title = self.lookup_title
+        self.empty_value_display = model_admin.get_empty_value_display()
+
+        self.form = self.get_form(request)
+
+    def get_form(self, request):
+        self.field = self.get_field()
+        self.widget_output = self.field.widget.render(name=self.field, value=None)
+
+    def get_field(self):
+        return ModelChoiceField(
+            queryset=self.target_model._default_manager.all(),
+            widget=ListFilterAutocompleteSelect(
+                self.model._meta.get_field(self.field_path),
+                self.model_admin.admin_site,
+            ),
+            required=False,
+        )
+
+    def expected_parameters(self):
+        return []
+
+    def choices(self, changelist):
+        yield
+
+    def has_output(self):
+        return True
+
+    def field_choices(self, field, request, model_admin):
+        return []
 
 
 class RelatedFieldListFilter(FieldListFilter):

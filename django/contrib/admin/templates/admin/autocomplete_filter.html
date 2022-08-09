@@ -1,0 +1,12 @@
+{% load i18n %}
+
+{{ spec.field.widget.media }}
+
+<details data-filter-title="{{ title }}" open>
+  <summary>
+    {% blocktranslate with filter_title=title %} By {{ filter_title }} {% endblocktranslate %}
+  </summary>
+  <ul>
+    <li>{{ spec.widget_output }}</li>
+  </ul>
+</details>

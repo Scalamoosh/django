@@ -17,17 +17,14 @@
                     }
                 }
             });
+            $(element).on('select2:selecting', function(e) {
+                alert();
+            });
         });
         return this;
     };
 
     $(function() {
-        // Initialize all autocomplete widgets except the one in the template
-        // form used when a new formset is added.
-        $('.admin-autocomplete').not('[name*=__prefix__]').not('.js-list-filter').djangoAdminSelect2();
-    });
-
-    document.addEventListener('formset:added', (event) => {
-        $(event.target).find('.admin-autocomplete').not('.js-list-filter').djangoAdminSelect2();
+        $('.js-list-filter.admin-autocomplete').djangoAdminSelect2();
     });
 }
