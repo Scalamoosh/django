@@ -393,9 +393,7 @@ class BaseExpression:
         clone = self.copy()
         clone.set_source_expressions(
             [
-                references_map.get(expr.name, expr)
-                if isinstance(expr, F)
-                else expr.replace_references(references_map)
+                expr.replace_references(references_map)
                 for expr in self.get_source_expressions()
             ]
         )
@@ -809,6 +807,9 @@ class F(Combinable):
         self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False
     ):
         return query.resolve_ref(self.name, allow_joins, reuse, summarize)
+
+    def replace_references(self, references_map):
+        return references_map.get(self.name, self)
 
     def asc(self, **kwargs):
         return OrderBy(self, **kwargs)
@@ -1298,13 +1299,23 @@ class When(Expression):
         template_params = extra_context
         sql_params = []
         condition_sql, condition_params = compiler.compile(self.condition)
+        # Filters that match everything are handled as empty strings in the
+        # WHERE clause, but in a CASE WHEN expression they must use a predicate
+        # that's always True.
+        if condition_sql == "":
+            if connection.features.supports_boolean_expr_in_select_clause:
+                condition_sql, condition_params = compiler.compile(Value(True))
+            else:
+                condition_sql, condition_params = "1=1", ()
         template_params["condition"] = condition_sql
-        sql_params.extend(condition_params)
         result_sql, result_params = compiler.compile(self.result)
         template_params["result"] = result_sql
-        sql_params.extend(result_params)
         template = template or self.template
-        return template % template_params, sql_params
+        return template % template_params, (
+            *sql_params,
+            *condition_params,
+            *result_params,
+        )
 
     def get_group_by_cols(self, alias=None):
         # This is not a complete expression and cannot be used in GROUP BY.
